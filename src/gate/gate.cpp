@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 Gate *Gate::s_self = NULL;
+Reactor<Gate> *Gate::s_reactor_ = NULL;
 
 Gate::Gate(const std::string ip, int port)
 	: m_gate_ip_(ip), m_gate_port_(port), m_gate_status_(CLOSE)
@@ -41,6 +42,7 @@ void Gate::wait_for_guest()
 	// 	dispatch_guest_to_hub(sock_client);
 	// }
 	Reactor<Gate> reactor(10, this);
+	s_reactor_ = &reactor;
 	reactor.reg_ev(sock_listenner, &Gate::dispatch_guest_to_hub_epollwrapper);
 	reactor.run();
 }
@@ -70,6 +72,7 @@ void Gate::alarm_handler(int)
 {
 	Logging::warning("Catch a SIGALRM signal, gate start closing...\n");
 	s_self->m_gate_port_ = CLOSE;
+	s_reactor_->stop();
 }
 
 
@@ -83,7 +86,8 @@ void Gate::open()
 {
 	m_gate_status_ = OPEN;
 	sleep(3);
-	ThreadPoolSingleton::instance().add_task(wrapper, this);
+	//ThreadPoolSingleton::instance().add_task(wrapper, this);
+	wrapper(this);
 }
 
 void *Gate::wrapper(void *arg)

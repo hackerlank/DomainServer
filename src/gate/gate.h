@@ -3,6 +3,9 @@
 
 #include <string>
 
+template<typename T>
+class Reactor;
+
 class Gate
 {
 public:
@@ -30,6 +33,7 @@ private:
 	int				m_gate_status_;
 private:
 	static Gate 	*s_self;
+	static Reactor<Gate> *s_reactor_;
 };
 
 #endif // GATE_H
