@@ -3,7 +3,7 @@
 
 int main()
 {
-	Gate g("127.0.0.1", 8888);
+	Gate g("0.0.0.0", 8888);
 	g.open();
 	pause();
 	g.close();

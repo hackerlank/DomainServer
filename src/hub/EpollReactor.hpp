@@ -6,13 +6,15 @@
 #include <unistd.h>
 #include <map>
 #include <errno.h>
+#include <cstring>
 
+template<typename T>
 class Reactor
 {
-	typedef void *(handler)(int sock_fd);
-	typedef std::pair<int, handler) p;
+	typedef void *(T::*handler)(int sock_fd);
+	typedef std::pair<int, handler> p;
 public:
-	Reactor(int max_size);
+	Reactor(int max_size, T *t);
 	~Reactor();
 public:
 	bool reg_ev(int fd, handler h);
@@ -26,21 +28,25 @@ private:
 	int			m_ep_fd_;
 	std::map<int, handler> m_handler_map;
 	bool 		m_running;
+	T 			*m_t_;
 };
 
 // ctor
-Reactor::Reactor(int max_size)
-	: m_cur_size_(0), m_max_size_(max_size), m_running(true)
+template<typename T>
+Reactor<T>::Reactor(int max_size, T *t)
+	: m_cur_size_(0), m_max_size_(max_size), m_running(true), m_t_(t)
 {
 	m_ep_fd_ = epoll_create(m_max_size_);
 }
 // dtor
-Reactor::~Reactor()
+template<typename T>
+Reactor<T>::~Reactor()
 {
 	close(m_ep_fd_);
 }
 // register one fd
-bool Reactor::reg_ev(int fd, handler h)
+template<typename T>
+bool Reactor<T>::reg_ev(int fd, handler h)
 {
 	if(m_cur_size_>=m_max_size_)
 		return false;
@@ -49,11 +55,12 @@ bool Reactor::reg_ev(int fd, handler h)
 	ev.events = EPOLLIN|EPOLLET;
 	epoll_ctl(m_ep_fd_, EPOLL_CTL_ADD, fd, &ev);
 	m_cur_size_++;
-	m_handler_map.insert(p(fd, handler));
+	m_handler_map.insert(p(fd, h));
 	return true;
 }
 // remove one fd
-bool Reactor::del_ev(int fd)
+template<typename T>
+bool Reactor<T>::del_ev(int fd)
 {
 	if(m_handler_map.find(fd)==m_handler_map.end())
 		return false;
@@ -64,21 +71,23 @@ bool Reactor::del_ev(int fd)
 	return true;
 }
 // get status
-bool Reactor::is_full()
+template<typename T>
+bool Reactor<T>::is_full()
 {
 	return m_cur_size_>=m_max_size_;
 }
 // start reactor
-void Reactor::run()
+template<typename T>
+void Reactor<T>::run()
 {
-	std::map<int, handler>::iterator iter;
+	typename std::map<int, handler>::iterator iter;
 	while(m_running)
 	{
 		epoll_event events[4096];
 		int ret = epoll_wait(m_ep_fd_, events, m_max_size_, 100);
 		if(ret<0)
 		{
-			Logging::error("epoll_wait returns error,[%s]\n", strerr(errno));
+			Logging::error("epoll_wait returns error,[%s]\n", strerror(errno));
 			return;
 		}
 		for(int i=0; i<ret; ++i)
@@ -96,14 +105,17 @@ void Reactor::run()
 			else
 			{
 				// dummy do something...
-				iter.second(iter.first);
+				//iter.second(iter.first);
+				handler h = iter->second;
+				(m_t_->*h)(iter->first);
 			}
 		}
 	}
 	Logging::info("Reactor stop running...exiting...\n");
 }
 // stop reactor
-void Reactor::stop()
+template<typename T>
+void Reactor<T>::stop()
 {
 	m_running = false;
 }

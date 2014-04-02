@@ -1,6 +1,7 @@
 #include "gate.h"
 #include "log.hpp"
 #include "singleton.hpp"
+#include "EpollReactor.hpp"
 #include <signal.h>
 #include <arpa/inet.h>
 #include <cstring>
@@ -33,12 +34,15 @@ void Gate::wait_for_guest()
 
 	bind(sock_listenner, (struct sockaddr *)&gate_addr, sizeof(gate_addr));
 	listen(sock_listenner, 100);
-	while(m_gate_status_==OPEN)
-	{
-		socklen_t addr_len = sizeof(client_addr);
-		int sock_client = accept(sock_listenner, (struct sockaddr *)&client_addr, &addr_len);
-		dispatch_guest_to_hub(sock_client);
-	}
+	// while(m_gate_status_==OPEN)
+	// {
+	// 	socklen_t addr_len = sizeof(client_addr);
+	// 	int sock_client = accept(sock_listenner, (struct sockaddr *)&client_addr, &addr_len);
+	// 	dispatch_guest_to_hub(sock_client);
+	// }
+	Reactor<Gate> reactor(10, this);
+	reactor.reg_ev(sock_listenner, &Gate::dispatch_guest_to_hub_epollwrapper);
+	reactor.run();
 }
 
 bool Gate::dispatch_guest_to_hub(int sock_fd)
@@ -48,6 +52,18 @@ bool Gate::dispatch_guest_to_hub(int sock_fd)
 	Logging::debug("Gate::dispatch_guest_to_hub\n");
 	::close(sock_fd);
 	return true;
+}
+
+void *Gate::dispatch_guest_to_hub_epollwrapper(int sock_fd)
+{
+	// use domain socket to pass fd
+	// TODO
+	Logging::debug("Gate::dispatch_guest_to_hub_epollwrapper\n");
+	struct sockaddr_in client_addr;
+	socklen_t addr_len = sizeof(client_addr);
+	int sock_client = accept(sock_fd, (struct sockaddr *)&client_addr, &addr_len);
+	dispatch_guest_to_hub(sock_client);
+	return NULL;
 }
 
 void Gate::alarm_handler(int)

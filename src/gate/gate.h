@@ -15,6 +15,8 @@ public:
 	void close();
 private:
 	bool dispatch_guest_to_hub(int sock_fd);
+	// for epoll
+	void *dispatch_guest_to_hub_epollwrapper(int sock_fd);
 	void wait_for_guest();
 private:
 	static void alarm_handler(int);
